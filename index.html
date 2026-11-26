@@ -125,6 +125,8 @@ select { padding-inline-end: 27px; appearance: none; background-image: linear-gr
 #day-transactions { margin-top: 10px; }
 #day-transactions .empty { padding-bottom: 2px; }
 .quick-actions { display: flex; flex-wrap: wrap; gap: 7px; }
+.point-actions { justify-content: end; margin: 8px 0 12px; }
+.habit-group { display: block; font-size: .75rem; font-weight: 500; margin-top: 2px; }
 .footer { text-align: center; color: var(--quiet); font-size: .79rem; margin: 22px 0; }
 .split-title { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 19px 0 11px; }
 .months { display: grid; gap: 10px; grid-template-columns: repeat(3, minmax(0, 1fr)); }
@@ -218,8 +220,10 @@ form { display: grid; gap: 10px; }
 .form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
 .form-error { color: var(--red); font-size: .9rem; }
 .form-error:empty { display: none; }
-.dialog-actions { display: flex; justify-content: end; gap: 8px; }
+.dialog-actions { display: flex; flex-wrap: wrap; justify-content: end; gap: 8px; }
 .settings-label { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px; }
+.archived-habits { margin-top: 14px; }
+.archived-habits summary { cursor: pointer; margin-bottom: 6px; }
 .catalog-entry { margin-top: 9px; }
 #catalog-category { width: 100%; margin-bottom: 8px; }
 .catalog-group { margin-top: 6px; }
@@ -358,6 +362,7 @@ legend { font-size: .88rem; font-weight: 650; }
           </div>
         </div>
         <div id="daily-score"></div>
+        <div class="quick-actions point-actions"><button class="outline" id="points-edit" type="button">Ajuster les points</button></div>
         <div id="home-rank"></div>
         <div class="dashboard-grid">
           <section class="card objective-card" aria-labelledby="gains-title">
@@ -396,6 +401,7 @@ legend { font-size: .88rem; font-weight: 650; }
           <h1 id="month-title" tabindex="-1"></h1>
           <button id="month-back" class="outline" type="button">Retour à l’année</button>
         </div>
+        <div id="month-score"></div>
         <section class="card month-panel" aria-labelledby="month-habits-title">
           <div class="section-title"><span class="tile" data-tone="gain"><span class="icon" data-icon="target" aria-hidden="true"></span></span><h2 id="month-habits-title">Habitudes</h2></div>
           <div id="month-habits"></div>
@@ -494,6 +500,21 @@ legend { font-size: .88rem; font-weight: 650; }
       </div>
     </form>
   </dialog>
+  <dialog id="points-dialog" aria-labelledby="points-title">
+    <form id="points-form">
+      <div class="dialog-title"><h2 id="points-title">Ajuster les points</h2><button type="button" class="icon-button" data-close aria-label="Fermer">×</button></div>
+      <p class="muted" id="points-date"></p>
+      <div class="form-grid">
+        <label>Type<select name="direction"><option value="bonus">Bonus</option><option value="penalty">Malus</option></select></label>
+        <label>Points<input name="points" required inputmode="numeric" type="number" min="1"></label>
+      </div>
+      <p class="form-error" aria-live="polite"></p>
+      <div class="dialog-actions">
+        <button type="button" class="danger" id="points-delete" hidden>Supprimer</button>
+        <button type="submit" class="primary">Enregistrer</button>
+      </div>
+    </form>
+  </dialog>
   <dialog id="money-dialog" aria-labelledby="money-title">
     <form id="money-form">
       <div class="dialog-title"><h2 id="money-title">Nouvelle opération</h2><button type="button" class="icon-button" data-close aria-label="Fermer">×</button></div>
@@ -518,6 +539,10 @@ legend { font-size: .88rem; font-weight: 650; }
       <div class="quick-actions"><button type="button" class="outline" data-open-catalog>Catalogue</button><button type="button" id="habit-add" class="outline">Créer</button></div>
     </div>
     <div id="habit-settings"></div>
+    <details class="archived-habits" id="archived-habits" hidden>
+      <summary>Habitudes archivées <span id="archived-habit-count"></span></summary>
+      <div id="habit-archives"></div>
+    </details>
     <div class="backup">
       <h3>Données</h3>
       <p class="muted">L’historique est conservé sur cet appareil. Tu peux en garder une copie et la restaurer sur un autre appareil.</p>
@@ -540,6 +565,7 @@ legend { font-size: .88rem; font-weight: 650; }
     <form id="habit-form">
       <div class="dialog-title"><h2 id="habit-title">Nouvelle habitude</h2><button type="button" class="icon-button" data-close aria-label="Fermer">×</button></div>
       <label>Nom<input name="name" required maxlength="48" placeholder="Ex. Marcher 30 minutes"></label>
+      <label>Groupe<select name="group" required><option value="">Choisir un groupe</option></select></label>
       <div class="form-grid">
         <label>Type<select name="kind"><option value="gain">Objectif</option><option value="loss">Pénalité</option></select></label>
         <label>Points<input name="points" required inputmode="numeric" type="number" min="1" max="99"></label>
@@ -548,8 +574,9 @@ legend { font-size: .88rem; font-weight: 650; }
       <p class="muted" id="habit-rule"></p>
       <p class="form-error" aria-live="polite"></p>
       <div class="dialog-actions">
-        <button type="button" id="habit-archive" class="danger" hidden>Archiver</button>
-        <button type="submit" class="primary">Enregistrer</button>
+        <button type="button" id="habit-delete" class="danger" hidden>Supprimer</button>
+        <button type="button" id="habit-archive" class="outline" hidden>Archiver</button>
+        <button type="submit" id="habit-save" class="primary">Enregistrer</button>
       </div>
     </form>
   </dialog>
@@ -559,6 +586,7 @@ legend { font-size: .88rem; font-weight: 650; }
 const NOTE_TITLE_LIMIT = 120;
 const NOTE_BODY_LIMIT = 20000;
 const EARLIEST_DAY = '2000-01-01';
+const POINT_ADJUSTMENT_LIMIT = 999;
 const euro = new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' });
 const dayFormat = new Intl.DateTimeFormat('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
 const shortDate = new Intl.DateTimeFormat('fr-FR', { day: 'numeric', month: 'short' });
@@ -688,6 +716,7 @@ function newJournal(today) {
     money: [],
     weights: {},
     notes: [],
+    pointAdjustments: {},
   };
 }
 
@@ -739,13 +768,16 @@ function scoreDay(journal, date) {
       earned += Math.min(count, 1) * habit.points;
     }
   }
-  return { earned, lost, max, net: earned - lost };
+  const adjustment = journal.pointAdjustments?.[date] ?? 0;
+  return { earned, lost, max, adjustment, net: earned - lost + adjustment };
 }
 
 function* trackedDays(journal, from, through) {
   if (from < journal.start) {
-    for (const date of Object.keys(journal.days).sort()) {
-      if (date >= from && date <= through && date < journal.start && Object.keys(journal.days[date]).length) yield date;
+    const recordedDates = new Set([...Object.keys(journal.days), ...Object.keys(journal.pointAdjustments ?? {})]);
+    for (const date of [...recordedDates].sort()) {
+      if (date >= from && date <= through && date < journal.start
+        && (Object.keys(journal.days[date] ?? {}).length || journal.pointAdjustments?.[date])) yield date;
     }
   }
   for (let date = from > journal.start ? from : journal.start; date <= through; date = shiftDay(date, 1)) {
@@ -754,12 +786,13 @@ function* trackedDays(journal, from, through) {
 }
 
 function scoreRange(journal, from, through) {
-  const result = { earned: 0, lost: 0, max: 0, net: 0 };
+  const result = { earned: 0, lost: 0, max: 0, adjustment: 0, net: 0 };
   for (const date of trackedDays(journal, from, through)) {
     const score = scoreDay(journal, date);
     result.earned += score.earned;
     result.lost += score.lost;
-    result.max += score.max;
+    if (date >= journal.start || Object.keys(journal.days[date] ?? {}).length) result.max += score.max;
+    result.adjustment += score.adjustment;
     result.net += score.net;
   }
   return result;
@@ -804,7 +837,7 @@ function gradeFor(score) {
   const next = gradeScale[index + 1];
   return {
     name: gradeScale[index].name,
-    percent: Math.floor(percent),
+    percent: Math.min(100, Math.floor(percent)),
     next: next ? { name: next.name, gap: Math.ceil((next.min * score.max - 100 * score.net) / 100) } : null,
   };
 }
@@ -850,6 +883,7 @@ function validJournal(value) {
         || change.points < 1 || change.points > 99 || !Array.isArray(change.days)
         || change.days.some((day) => !Number.isInteger(day) || day < 0 || day > 6)
         || (change.kind === 'gain' && !change.days.length)
+        || (change.group !== undefined && !habitCatalog.some(({ theme }) => theme === change.group))
         || (change.archived !== undefined && typeof change.archived !== 'boolean')) return false;
       previous = change.from;
     }
@@ -859,6 +893,13 @@ function validJournal(value) {
     if (!validDay(date) || !isRecord(marks)) return false;
     for (const [id, count] of Object.entries(marks)) {
       if (!ids.has(id) || !Number.isInteger(count) || count < 1 || count > 999) return false;
+    }
+  }
+
+  if (Object.hasOwn(value, 'pointAdjustments')) {
+    if (!isRecord(value.pointAdjustments)) return false;
+    for (const [date, points] of Object.entries(value.pointAdjustments)) {
+      if (!validDay(date) || !Number.isInteger(points) || !points || Math.abs(points) > POINT_ADJUSTMENT_LIMIT) return false;
     }
   }
 
@@ -1239,12 +1280,14 @@ const categoryIcons = { sport: 'sport', learn: 'book', food: 'food', focus: 'pho
 const habitIcons = { sommeil: 'moon', alcool: 'glass', cigarette: 'smoke' };
 const moneyForm = $('money-form');
 const habitForm = $('habit-form');
+const pointsForm = $('points-form');
 let today = dayKey();
 let selectedDay = today;
 let selectedMonth = today.slice(0, 7);
 let view = 'today';
 let activeMoneyId = null;
 let activeHabitId = null;
+let pointDate;
 let alertTimer;
 let unreadableSave = false;
 let journal = readJournal();
@@ -1338,8 +1381,12 @@ function tile(name, tone) {
   return `<span class="tile" data-tone="${tone}">${icon(name)}</span>`;
 }
 
+function habitGroup(habit) {
+  return habitCatalog.find(({ theme }) => theme === habit.group) ?? categoryByHabit.get(habit.id);
+}
+
 function habitTile(habit) {
-  const group = categoryByHabit.get(habit.id);
+  const group = habitGroup(habit);
   const tone = group?.theme ?? habit.kind;
   const fallback = habit.kind === 'loss' ? 'warning' : 'target';
   return tile(habitIcons[habit.id] ?? categoryIcons[tone] ?? fallback, tone);
@@ -1350,7 +1397,7 @@ function scoreCard(score, label, ringValue, ringLabel, percent) {
     <div class="score-card">
       <div><p class="score-label">${label}</p>
         <div class="score-number">${signed(score.net)} <small>pts nets</small></div>
-        <div class="score-details"><span>${signed(score.earned)} gagnés</span><span class="negative">${signed(-score.lost)} de pénalités</span></div>
+        <div class="score-details"><span>${signed(score.earned)} gagnés</span><span class="negative">${signed(-score.lost)} de pénalités</span>${score.adjustment ? `<span>${signed(score.adjustment)} d’ajustement</span>` : ''}</div>
       </div>
       <div class="ring" style="--fraction:${percent}%"><div><strong>${ringValue}</strong><span>${ringLabel}</span></div></div>
     </div>`;
@@ -1375,13 +1422,14 @@ function renderToday() {
   $('return-today').hidden = day === today;
   const progress = gains.length ? 100 * completed / gains.length : 0;
   $('daily-score').innerHTML = scoreCard(score, `Score du jour · ${number(score.max)} pts possibles`, `${completed}/${gains.length}`, 'objectifs', progress);
+  $('points-edit').textContent = score.adjustment ? 'Modifier l’ajustement' : 'Ajuster les points';
   $('home-rank').hidden = day !== today;
   if (day === today) renderHomeRank();
   $('gain-count').textContent = `${completed} sur ${gains.length}`;
   $('gains').innerHTML = gains.map((habit) => `
     <button type="button" class="row check" data-mark="${habit.id}" aria-pressed="${Boolean(marks[habit.id])}">
       ${habitTile(habit)}
-      <span class="row-label">${esc(habit.name)}</span><span class="point">+${habit.points} pts</span>
+      ${habitLabel(habit)}<span class="point">+${habit.points} pts</span>
       <span class="checkbox" aria-hidden="true">${marks[habit.id] ? '✓' : ''}</span>
     </button>`).join('') || '<p class="muted empty">Aucun objectif prévu ce jour-là.</p>';
   $('losses').innerHTML = losses.map((habit) => {
@@ -1389,7 +1437,7 @@ function renderToday() {
     return `
       <div class="row">
         ${habitTile(habit)}
-        <span class="row-label">${esc(habit.name)}</span>
+        ${habitLabel(habit)}
         <span class="point loss">−${habit.points} pts</span>
         <div class="stepper">
           <button type="button" data-mark="${habit.id}" data-change="-1" aria-label="Retirer une occurrence : ${esc(habit.name)}" ${count === 0 ? 'disabled' : ''}>−</button>
@@ -1415,6 +1463,7 @@ function renderYearOptions() {
   for (const item of journal.money) years.add(item.date.slice(0, 4));
   for (const day of Object.keys(journal.days)) years.add(day.slice(0, 4));
   for (const day of Object.keys(journal.weights ?? {})) years.add(day.slice(0, 4));
+  for (const day of Object.keys(journal.pointAdjustments ?? {})) years.add(day.slice(0, 4));
   for (const picker of [$('year-picker'), $('history-year')]) {
     const previous = picker.value;
     picker.replaceChildren(...Array.from(years).sort().reverse().map((year) => new Option(year, year)));
@@ -1444,7 +1493,7 @@ function renderYear() {
     const next = current && grade?.next ? `<span class="muted">${number(grade.next.gap)} pt${grade.next.gap === 1 ? '' : 's'} vers ${grade.next.name} à date</span>` : '';
     let info = '<span class="muted">À venir</span>';
     if (last < journal.start && first <= today) info = '<span class="muted">Avant le suivi</span>';
-    if (first <= today && (last >= journal.start || score.max > 0 || score.lost > 0)) {
+    if (first <= today && (last >= journal.start || score.max > 0 || score.lost > 0 || score.adjustment !== 0)) {
       info = `<span>${signed(score.net)} pts</span><span class="muted">${grade ? `${grade.percent}%` : 'Sans grade'}</span>`;
     }
     return `<button class="month ${current ? 'current' : ''}" type="button" data-month="${first.slice(0, 7)}" ${first > today ? 'disabled' : ''}>
@@ -1459,6 +1508,10 @@ function renderMonth() {
   const monthEnd = shiftDay(`${weightMonth(selectedMonth, 1)}-01`, -1);
   const through = monthEnd < today ? monthEnd : today;
   $('month-title').textContent = monthYearFormat.format(localDate(from));
+  const score = scoreRange(journal, from, through);
+  const grade = gradeFor(score);
+  $('month-score').innerHTML = scoreCard(score, `Score mensuel · ${number(score.max)} pts possibles`,
+    grade ? `${grade.percent}%` : '–', grade?.name ?? 'sans grade', grade?.percent ?? 0);
   const summary = habitSummary(journal, from, through);
   const regular = summary.regular.map(({ name, done, planned }) =>
     `<li><span>${esc(name)}</span><strong>${number(done)} / ${number(planned)}</strong></li>`).join('');
@@ -1567,13 +1620,34 @@ function renderTransactions(items, emptyMessage) {
     </button>`).join('') || `<p class="muted empty">${emptyMessage}</p>`;
 }
 
+function habitLabel(habit, status = '') {
+  const category = habitGroup(habit)?.category ?? 'Sans groupe';
+  return `<span class="row-label">${esc(habit.name)}<small class="habit-group muted">${esc(category + status)}</small></span>`;
+}
+
+function managedHabits() {
+  const date = today < journal.start ? journal.start : today;
+  return journal.habits.flatMap(({ id, changes }) => {
+    const change = changes.findLast((entry) => entry.from <= date
+      || (entry.archived && entry.from === shiftDay(date, 1)));
+    return change ? [{ id, ...change }] : [];
+  });
+}
+
 function renderSettings() {
-  $('habit-settings').innerHTML = habitsOn(journal, today).map((habit) => `
+  const habits = managedHabits();
+  const row = (habit) => `
     <button type="button" class="row settings-line" data-habit="${habit.id}">
       ${habitTile(habit)}
-      <span class="row-label">${esc(habit.name)}</span>
+      ${habitLabel(habit, habit.archived && habit.from > today ? ' · Archive demain' : '')}
       <span class="point ${habit.kind === 'loss' ? 'loss' : ''}">${habit.kind === 'loss' ? '−' : '+'}${habit.points} pts</span>
-    </button>`).join('') || '<p class="muted empty">Aucune habitude active.</p>';
+    </button>`;
+  $('habit-settings').innerHTML = habits.filter((habit) => !habit.archived).map(row).join('')
+    || '<p class="muted empty">Aucune habitude active.</p>';
+  const archives = habits.filter((habit) => habit.archived);
+  $('archived-habits').hidden = !archives.length;
+  $('archived-habit-count').textContent = `(${archives.length})`;
+  $('habit-archives').innerHTML = archives.map(row).join('');
 }
 
 function renderCatalog() {
@@ -1704,6 +1778,37 @@ $('money-delete').addEventListener('click', () => {
   }
 });
 
+$('points-edit').addEventListener('click', () => {
+  pointDate = selectedDay;
+  const points = journal.pointAdjustments?.[pointDate] ?? 0;
+  $('points-date').textContent = dayFormat.format(localDate(pointDate));
+  $('points-delete').hidden = !points;
+  pointsForm.elements.direction.value = points < 0 ? 'penalty' : 'bonus';
+  pointsForm.elements.points.max = POINT_ADJUSTMENT_LIMIT;
+  pointsForm.elements.points.value = points ? Math.abs(points) : '';
+  pointsForm.querySelector('.form-error').textContent = '';
+  $('points-dialog').showModal();
+});
+
+function savePointAdjustment(points) {
+  const pointAdjustments = { ...journal.pointAdjustments };
+  if (points) pointAdjustments[pointDate] = points;
+  else delete pointAdjustments[pointDate];
+  if (save({ ...journal, pointAdjustments }, (message) => { pointsForm.querySelector('.form-error').textContent = message; })) {
+    $('points-dialog').close();
+    showFeedback(points ? 'Points ajustés.' : 'Ajustement supprimé.');
+  }
+}
+
+pointsForm.addEventListener('submit', (event) => {
+  event.preventDefault();
+  const points = Number(pointsForm.elements.points.value);
+  if (!Number.isInteger(points) || points < 1 || points > POINT_ADJUSTMENT_LIMIT) return;
+  savePointAdjustment(pointsForm.elements.direction.value === 'penalty' ? -points : points);
+});
+
+$('points-delete').addEventListener('click', () => savePointAdjustment(0));
+
 function syncHabitForm() {
   const loss = habitForm.elements.kind.value === 'loss';
   $('habit-days').hidden = loss;
@@ -1716,8 +1821,11 @@ function openHabit(habit = null, preset = null) {
   const fields = habit ?? preset;
   activeHabitId = fields?.id ?? null;
   $('habit-title').textContent = habit ? 'Modifier l’habitude' : 'Nouvelle habitude';
-  $('habit-archive').hidden = !habit;
+  $('habit-archive').hidden = !habit || Boolean(habit.archived);
+  $('habit-delete').hidden = !habit;
+  $('habit-save').textContent = habit?.archived ? 'Réactiver' : 'Enregistrer';
   habitForm.elements.name.value = fields?.name ?? '';
+  habitForm.elements.group.value = fields ? habitGroup(fields)?.theme ?? '' : '';
   habitForm.elements.kind.value = fields?.kind ?? 'gain';
   habitForm.elements.kind.disabled = Boolean(fields);
   habitForm.elements.points.value = fields?.points ?? 2;
@@ -1728,10 +1836,9 @@ function openHabit(habit = null, preset = null) {
   $('habit-dialog').showModal();
 }
 
-function commitHabit(change) {
+function commitHabit(change, from = today > journal.start ? today : journal.start) {
   const updated = structuredClone(journal);
   const existing = updated.habits.find((habit) => habit.id === activeHabitId);
-  const from = today > updated.start ? today : updated.start;
   const version = { ...change, from };
   if (existing) {
     existing.changes = [...existing.changes.filter((entry) => entry.from < from), version];
@@ -1746,23 +1853,49 @@ habitForm.addEventListener('submit', (event) => {
   event.preventDefault();
   const form = new FormData(habitForm);
   const name = form.get('name').trim();
+  const group = form.get('group');
   const kind = habitForm.elements.kind.value;
   const points = Number(form.get('points'));
   const days = kind === 'gain' ? form.getAll('weekday').map(Number) : [];
-  if (!name || !Number.isInteger(points) || points < 1 || points > 99 || (kind === 'gain' && !days.length)) {
-    habitForm.querySelector('.form-error').textContent = 'Renseigne un nom, des points et au moins un jour pour un objectif.';
+  if (!name || !habitCatalog.some(({ theme }) => theme === group)
+    || !Number.isInteger(points) || points < 1 || points > 99 || (kind === 'gain' && !days.length)) {
+    habitForm.querySelector('.form-error').textContent = 'Renseigne un nom, un groupe, des points et au moins un jour pour un objectif.';
     return;
   }
-  if (commitHabit({ name, kind, points, days })) {
+  if (commitHabit({ name, group, kind, points, days })) {
     $('habit-dialog').close();
     if ($('catalog-dialog').open) $('catalog-category').focus();
   }
 });
 
 $('habit-archive').addEventListener('click', () => {
-  const habit = habitsOn(journal, today).find((entry) => entry.id === activeHabitId);
-  if (habit && confirm('Archiver cette habitude à partir d’aujourd’hui ?') && commitHabit({ ...habit, archived: true })) {
+  const habit = managedHabits().find((entry) => entry.id === activeHabitId);
+  if (!habit || habit.archived) return;
+  const date = today < journal.start ? journal.start : today;
+  const keepMarks = Object.entries(journal.days).some(([day, marks]) =>
+    (day === date || (date === journal.start && day < date)) && marks[habit.id]);
+  const from = keepMarks ? shiftDay(date, 1) : date;
+  const message = keepMarks ? 'Archiver à partir de demain pour conserver les points déjà saisis ?' : 'Archiver cette habitude ?';
+  const { id, ...change } = habit;
+  if (confirm(message) && commitHabit({ ...change, archived: true }, from)) {
     $('habit-dialog').close();
+    $('archived-habits').open = true;
+    showFeedback('Habitude archivée.');
+  }
+});
+
+$('habit-delete').addEventListener('click', () => {
+  if (!journal.habits.some(({ id }) => id === activeHabitId)) return;
+  if (!confirm('Supprimer définitivement cette habitude et toutes ses saisies ? Les anciens scores seront recalculés.')) return;
+  const updated = structuredClone(journal);
+  updated.habits = updated.habits.filter(({ id }) => id !== activeHabitId);
+  for (const [date, marks] of Object.entries(updated.days)) {
+    delete marks[activeHabitId];
+    if (!Object.keys(marks).length) delete updated.days[date];
+  }
+  if (save(updated, (message) => { habitForm.querySelector('.form-error').textContent = message; })) {
+    $('habit-dialog').close();
+    showFeedback('Habitude supprimée.');
   }
 });
 
@@ -1814,7 +1947,7 @@ document.addEventListener('click', (event) => {
     if (item) openMoney(item.type, item.date, item);
   }
   if (button.dataset.habit) {
-    const habit = habitsOn(journal, today).find((entry) => entry.id === button.dataset.habit);
+    const habit = managedHabits().find((entry) => entry.id === button.dataset.habit);
     if (habit) openHabit(habit);
   }
   if (button.hasAttribute('data-open-catalog')) {
@@ -1866,7 +1999,10 @@ $('restore').addEventListener('click', () => $('import-file').click());
 
 $('history-month').add(new Option('Tous les mois', ''));
 $('catalog-category').add(new Option('Toutes les catégories', ''));
-habitCatalog.forEach(({ category }, index) => $('catalog-category').add(new Option(category, String(index))));
+habitCatalog.forEach(({ category, theme }, index) => {
+  $('catalog-category').add(new Option(category, String(index)));
+  habitForm.elements.group.add(new Option(category, theme));
+});
 for (let index = 0; index < 12; index += 1) {
   const name = monthFormat.format(new Date(2024, index, 1));
   $('history-month').add(new Option(name.charAt(0).toUpperCase() + name.slice(1), String(index + 1).padStart(2, '0')));
