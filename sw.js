@@ -1,4 +1,4 @@
-const CACHE = `elan-v10-${self.registration.scope}`;
+const CACHE = `elan-v11-${self.registration.scope}`;
 const INDEX = new URL('./index.html', self.registration.scope).href;
 const ASSETS = [INDEX, './manifest.webmanifest', './icon-180.png', './icon-192.png', './icon-512.png']
   .map((path) => new URL(path, self.registration.scope).href);
